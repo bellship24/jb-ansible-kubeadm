@@ -1,0 +1,125 @@
+---
+# This is an example playbook to execute Ansible tests.
+
+- name: Verify
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Include default vars
+      include_vars: ../../defaults/main.yml
+
+    - name: Include kubeadm_converge_vars.yml
+      include_vars: kubeadm_converge_vars.yml
+
+    - name: Block about asserting cluster status using kube-apiserver (localhost)
+      block:
+        - name: Check cluster status using kube-apiserver (localhost)
+          shell: |
+            curl --silent --max-time 2 --insecure https://localhost:6443/livez
+          register: check_kube_status_api_local
+
+        - name: (test) Print kube-apiserver (localhost)
+          debug:
+            var: check_kube_status_api_local
+
+        - name: Assert cluster status using kube-apiserver (localhost)
+          assert:
+            that:
+              - "'{{ check_kube_status_api_local.stdout }}' == 'ok' "
+            success_msg: "[PASS] It can reachable to kube-apiserver (localhost)"
+            fail_msg: "[FAILED] It can't reachable to kube-apiserver (localhost)"
+
+    - name: Block about asserting cluster status using kube-apiserver (VIP)
+      when: kubernetes_controlplane_endpoint is defined
+      block:
+        - name: Check cluster status using kube-apiserver (VIP)
+          shell: |
+            curl --silent --max-time 2 --insecure https://{{ kubernetes_controlplane_endpoint }}/livez
+          register: check_kube_status_api_vip
+        
+        - name: (test) Print kube-apiserver (VIP)
+          debug:
+            var: check_kube_status_api_vip
+
+        - name: Assert cluster status using kube-apiserver (VIP)
+          assert:
+            that:
+              - "'{{ check_kube_status_api_vip.stdout }}' == 'ok' "
+            success_msg: "[PASS] It can reachable to kube-apiserver (VIP)"
+            fail_msg: "[FAILED] It can't reachable to kube-apiserver (VIP)"
+
+    - name: Block about asserting cluster status using kubectl
+      block:
+        - name: Check cluster status using kubectl
+          shell: |
+            kubectl get --raw='/readyz?verbose'
+          register: check_kube_status_kubectl
+    
+    - name: Block about asserting workload
+      when: ansible_hostname in groups['master']
+      block:
+        - name: Deploy workloads
+          shell: |
+            cat <<EOF | kubectl apply -f -
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: my-nginx
+            spec:
+              selector:
+                matchLabels:
+                  run: my-nginx
+              replicas: 2
+              template:
+                metadata:
+                  labels:
+                    run: my-nginx
+                spec:
+                  containers:
+                  - name: my-nginx
+                    image: nginx:latest
+                    # imagePullPolicy: Never #IfNotPresent #Always
+                    ports:
+                    - containerPort: 80
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: my-nginx
+              labels:
+                run: my-nginx
+            spec:
+              type: NodePort
+              ports:
+              - port: 80
+                protocol: TCP
+                nodePort: 31888
+              selector:
+                run: my-nginx
+            EOF
+        
+        - name: Check workloads running
+          shell: |
+            kubectl get po -o json
+          register: kubectl_get_pods
+          until: kubectl_get_pods.stdout | from_json | json_query('items[*].status.phase') | unique == ["Running"]
+
+        - name: Check connecting to workload
+          uri:
+            url: http://localhost:31888
+          register: check_workload_nodeport
+
+        - name: (test) Print check_workload_nodeport
+          debug:
+            var: check_workload_nodeport
+
+        - name: Assert connecting to workload
+          assert:
+            that: 
+              - check_workload_nodeport.status == 200
+            success_msg: "[PASS] can connect to workload using nodePort (200 OK)"
+            fail_msg: "[FAILED] can't connect to workload using nodePort"
+        
+        - name: Delete workloads
+          shell: |
+            kubectl delete deployment/my-nginx service/my-nginx

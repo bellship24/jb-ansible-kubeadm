@@ -1,0 +1,39 @@
+---
+# - name: Ensure kubelet is started and enabled at boot.
+#   service:
+#     name: kubelet
+#     state: started
+#     enabled: true
+
+- name: Create the directory about kubeadm_conf_path
+  file:
+    path: "{{ kubeadm_conf_path }}"
+    state: directory
+
+- name: Create kubeadm-init-conf.yaml
+  template:
+    src: "kubeadm-init-conf.j2"
+    dest: "{{ kubeadm_init_conf_file_path }}"
+  tags:
+    - test3
+
+- name: Create kubeadm-init-cmd.sh
+  template:
+    src: "kubeadm-init-cmd.j2"
+    dest: "{{ kubeadm_init_cmd_file_path }}"
+    mode: 755
+
+- name: Execute kubeadm-init-cmd.sh
+  command: >
+    sudo "{{ item }}"
+  register: kubeadm_init_rst
+  with_items:
+    - "{{ kubeadm_init_cmd_file_path }}"
+
+- name: Print kubeadm_init_rst
+  debug:
+    var: kubeadm_init_rst
+
+- name: Print kubeadm_init_rst
+  debug:
+    var: kubeadm_init_rst.result[0].stdout_lines

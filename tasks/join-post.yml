@@ -1,0 +1,44 @@
+- name: Ensure .kube directory exists.
+  file:
+    path: ~/.kube
+    state: directory
+    mode: 0755
+  when: "'k8s-master' in group_names"
+
+- name: Copy the kubectl admin.conf to ~/.kube/conf
+  file:
+    src: /etc/kubernetes/admin.conf
+    dest: ~/.kube/config
+    state: link
+    mode: 0644
+  when: "'k8s-master' in group_names"
+
+- name: Ensure kubectl alias exists
+  lineinfile:
+    path: ~/.bashrc
+    line: "{{ item }}"
+  with_items:
+    - ""
+    - "### k8s setting by ansible"
+    - "alias k=kubectl"
+    - ""
+  when: "'k8s-master' in group_names"
+
+# - name: Copy kube-vip.yaml from init-master
+#   synchronize:
+#     src: "/etc/kubernetes/manifests/kube-vip.yaml"
+#     dest: "/etc/kubernetes/manifests/kube-vip.yaml"
+#   delegate_to: "{{ groups['k8s-master'][0] }}"
+#   tags:
+#     - test
+
+- name: Move kube-vip.yaml to /etc/kubernetes/manifests
+  command: |
+    mv /etc/kubernetes/kube-vip.yaml /etc/kubernetes/manifests/kube-vip.yaml
+  # changed_when:
+  # failed_when:
+  when:
+    kubernetes_kubevip_enabled
+  tags:
+    - test
+    - kube-vip

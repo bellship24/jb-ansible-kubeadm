@@ -1,0 +1,39 @@
+# haproxy_status: latest
+# haproxy_frontend_port: 8443
+haproxy_backend_server_endpoint_list:
+  - {"hostname": "k8s-ubuntu18-m3", "ip": 172.17.0.2, "port": 6443}
+  - {"hostname": "k8s-ubuntu20-m2", "ip": 172.17.0.3, "port": 6443}
+  - {"hostname": "k8s-centos7-m1", "ip": 172.17.0.4, "port": 6443} #6443
+
+haproxy_conf: |  
+  global
+    log /dev/log  local0
+    log /dev/log  local1 notice
+    user root
+    group root
+    daemon
+
+  defaults
+    log global
+    mode http
+    # option httplog
+    # option dontlognull
+    timeout connect 5s
+    timeout client 10s
+    timeout server 10s
+    timeout http-request 10s
+
+  frontend apiserver
+      bind *:{{ haproxy_frontend_port }}
+      # mode http #tcp
+      default_backend apiserver
+
+  backend apiserver
+      # mode http #tcp
+      # option httpchk GET /livez
+      # http-check expect status 200
+      # option ssl-hello-chk
+      # balance     roundrobin
+      {% for node in haproxy_backend_server_endpoint_list %}
+      server {{ node.hostname }} {{ node.ip }}:{{ node.port }} check
+      {% endfor %}

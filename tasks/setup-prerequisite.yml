@@ -1,0 +1,55 @@
+---
+- name: Ensure dependencies are installed
+  package:
+    name: "{{ item }}"
+    state: present
+  with_items:
+  - curl
+  - openssl
+  - rsync
+  - jq
+  tags:
+    - test
+
+- name: Ensure dependencies are installed (YUM)
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - openssh-server
+    - openssh-clients
+    - openssh-askpass
+  when:
+    ansible_os_family == "RedHat"
+  tags:
+    - test
+
+- name: Disable system swap
+  command: /sbin/swapoff -a
+  ignore_errors: "{{ ignore_errors_swap }}"
+
+- name: Remove current swaps from fstab
+  lineinfile:
+    dest: /etc/fstab
+    regexp: '(?i)^([^#][\S]+\s+(none|swap)\s+swap.*)'
+    line: '# \1'
+    backrefs: yes
+    state: present
+  ignore_errors: true
+
+- name: Ensure props is installed
+  package:
+    name: "{{ procps_package }}"
+    state: present
+  when: >
+    ansible_distribution != 'Debian'
+    or ansible_distribution_major_version | int < 10
+
+- name: Let iptables see bridged traffic
+  sysctl:
+    name: "{{ item }}"
+    value: '1'
+    state: present
+  loop:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables

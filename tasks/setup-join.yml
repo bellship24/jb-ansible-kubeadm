@@ -1,0 +1,78 @@
+- name: Create kubeadm_token_cmd
+  command: >
+    kubeadm token create
+  register: kubeadm_token_cmd
+
+- name: Set fact about kubeadm_token
+  set_fact:
+    kubeadm_token: "{{ kubeadm_token_cmd.stdout }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items:
+    - "{{ groups['all'] }}"
+
+- name: (test) Print kubeadm_token variable
+  debug:
+    var: kubeadm_token
+
+- name: Create kubeadm_hash_cmd
+  shell: openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+  register: kubeadm_hash_cmd
+
+- name: Set fact about kubeadm_hash
+  set_fact:
+    kubeadm_hash: "sha256:{{ kubeadm_hash_cmd.stdout }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items:
+    - "{{ groups['all'] }}"
+
+- name: (test) Print kubeadm_hash
+  debug:
+    var: kubeadm_hash
+
+- name: Create kubeadm_cert_key_cmd
+  command: >
+    kubeadm certs certificate-key
+  register: kubeadm_cert_key_cmd
+  when:
+    - groups['k8s-master'] | length > 1
+
+- name: Set fact about kubeadm_cert_key
+  set_fact:
+    kubeadm_cert_key: "{{ kubeadm_cert_key_cmd.stdout }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items:
+    - "{{ groups['k8s-master'] }}"
+  when:
+    - groups['k8s-master'] | length > 1
+  
+- name: (test) Print kubeadm_cert_key variable
+  debug:
+    var: kubeadm_cert_key
+  when:
+    - groups['k8s-master'] | length > 1
+
+- name: Execute kubeadm upload-certs
+  command: >
+    kubeadm init phase upload-certs --upload-certs --certificate-key {{ kubeadm_cert_key }}
+  when:
+    - groups['k8s-master'] | length > 1
+
+- name: Set fact init_master_ip variable
+  set_fact:
+    init_master_ip: "{{ ansible_default_ipv4.address }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items:
+    "{{ groups['all'] }}"
+  when:
+    - (ansible_hostname == groups['k8s-master'][0])
+    - (kubeadm_cluster_configuration.controlPlaneEndpoint is not defined)
+
+- name: (test) Print init_master_ip variable
+  debug:
+    var: init_master_ip
+  when:
+    - kubeadm_cluster_configuration.controlPlaneEndpoint is not defined

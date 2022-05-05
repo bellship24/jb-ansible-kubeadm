@@ -1,0 +1,28 @@
+---
+- name: Include kubeadm_converge_vars.yml
+  include_vars: kubeadm_converge_vars.yml
+  tags:
+    - test
+    - test3
+
+# - name: Add a container to a network, leaving existing containers connected
+#   delegate_to: localhost
+#   docker_network:
+#     name: "ha-k8s-network"
+#     connected:
+#       - "{{ ansible_hostname }}"
+#     appends: yes
+#   tags:
+#     - test
+
+# - name: Re-collect network facts required after installation iproute
+#   setup:
+#     gather_subset: network
+#   tags:
+#     - test
+
+# - name: Print network var
+#   debug:
+#     var: network
+#   tags:
+#     - test

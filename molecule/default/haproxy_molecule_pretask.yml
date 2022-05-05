@@ -1,0 +1,3 @@
+---
+- name: Include haproxy_converge_vars.yml
+  include_vars: haproxy_converge_vars.yml

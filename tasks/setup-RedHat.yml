@@ -1,0 +1,25 @@
+---
+- name: Ensure dependencies are installed
+  yum:
+    name:
+      - ca-certificates
+    state: present
+  
+- name: Add Kubernetes YUM GPG key and repository
+  yum_repository:
+    name: kubernetes
+    description: kubernetes
+    baseurl: "{{ kubernetes_yum_base_url }}"
+    enabled: true
+    gpgcheck: "{{ kubernetes_yum_gpg_check }}"
+    repo_gpgcheck: "{{ kubernetes_yum_repo_gpg_check }}"
+    gpgkey: "{{ kubernetes_yum_gpg_key }}"
+    exclude: "kubelet kubeadm kubectl"
+
+- name: Install Kubernetes packages (YUM)
+  yum:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+    disable_excludes: "kubernetes"
+  notify: restart kubelet
+  with_items: "{{ rhel_kubernetes_packages }}"

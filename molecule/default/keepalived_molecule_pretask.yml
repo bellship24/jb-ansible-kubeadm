@@ -1,0 +1,43 @@
+- name: Include keepalived_converge_vars.yml
+  include_vars: keepalived_converge_vars.yml
+
+- name: Apt update and install rsync, ping, iproute
+  apt:
+    update_cache: yes
+    name:
+      - rsync
+      - inetutils-ping
+      - iproute2
+    state: present
+  when: ansible_os_family == "Debian"
+
+- name: Yum install iproute to fix undefined ansible_default_ipv4.address
+  yum:
+    name: iproute
+    state: present
+  when:
+    - ansible_os_family == "RedHat"
+
+# - name: Add a container to a network, leaving existing containers connected
+#   delegate_to: localhost
+#   docker_network:
+#     name: "keepalived-network"
+#     connected:
+#       - "{{ ansible_hostname }}"
+#     appends: yes
+
+# - name: Re-collect network facts required after installation iproute
+#   setup:
+#     gather_subset: network
+
+# - name: Show ansible_interfaces
+#   debug:
+#     var: ansible_interfaces
+
+- name: Define vrrp nic
+  set_fact:
+    vrrp_nic: "eth0" #"{{ ((ansible_interfaces | reject('equalto','lo')) | difference([ansible_default_ipv4.interface]))[0] | string }}"
+
+- name: (test) Print vrrp_nic
+  debug:
+    var: vrrp_nic

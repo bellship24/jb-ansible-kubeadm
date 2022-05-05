@@ -1,0 +1,30 @@
+---
+- name: Create the directory about kubeadm_conf_path
+  file:
+    path: "{{ kubeadm_conf_path }}"
+    state: directory
+
+- name: Create kubeadm-join-conf.yaml
+  template:
+    src: "kubeadm-join-conf.j2"
+    dest: "{{ kubeadm_join_conf_file_path }}"
+  tags:
+    - test3
+    - test4
+
+- name: Create kubeadm-join-cmd.sh
+  template:
+    src: "kubeadm-join-cmd.j2"
+    dest: "{{ kubeadm_join_cmd_file_path }}"
+    mode: 755
+
+- name: Execute kubeadm-join-cmd.sh
+  command: >
+    sudo "{{ item }}"
+  register: kubeadm_join_rst
+  with_items:
+    - "{{ kubeadm_join_cmd_file_path }}"
+
+- name: Print kubeadm_join_rst
+  debug:
+    var: kubeadm_join_rst.stdout

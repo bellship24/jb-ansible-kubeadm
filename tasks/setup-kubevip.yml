@@ -1,0 +1,65 @@
+---
+- name: Create the directory for kube-vip.yaml
+  file:
+    path: "/etc/kubernetes/manifests"
+    state: directory
+
+- name: Pull kube-vip image
+  command: |
+    docker pull ghcr.io/kube-vip/kube-vip:{{ kubernetes_kubevip_version }}
+  # changed_when:
+  #   -
+  # failed_when:
+  #   - 
+  tags:
+    - test
+
+- name: Create kube-vip.yaml
+  command: |
+    docker run --network host --rm ghcr.io/kube-vip/kube-vip:{{ kubernetes_kubevip_version }} \
+    manifest pod \
+    --interface {{ kubernetes_kubevip_interface }} \
+    --address {{ kubernetes_kubevip_vip }} \
+    --controlplane --services --arp --leaderElection \
+    | tee /etc/kubernetes/manifests/kube-vip.yaml
+  register: create_kubevip_yaml
+  tags:
+    - test
+  # changed_when:
+  #   - 
+  # failed_when:
+  #   - 
+  # when: (not in_cluster_check.stat.exists)
+
+- name: Write kube-vip.yaml
+  copy:
+    content: "{{ create_kubevip_yaml.stdout }}"
+    dest: "/etc/kubernetes/manifests/kube-vip.yaml"
+    mode: 0644
+  tags:
+    - test
+
+- name: Read kube-vip.yaml
+  shell: |
+    cat /etc/kubernetes/manifests/kube-vip.yaml
+  register: kube_vip_yaml
+  tags:
+    - test
+
+- name: Print kube-vip.yaml
+  debug:
+    msg: "{{ kube_vip_yaml.stdout }}"
+  tags:
+    - test
+
+- name: Create init_master_ip variable for all master nodes
+  copy:
+    dest: "/etc/kubernetes/kube-vip.yaml"
+    content: |
+      "{{ kube_vip_yaml.stdout }}"
+  delegate_to: "{{ item }}"
+  # delegate_facts: true
+  with_items: "{{ groups['all'] }}"
+  when: groups['k8s-master'][0] == ansible_hostname
+  tags:
+    - test

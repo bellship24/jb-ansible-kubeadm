@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+kubeadm init \
+  {% if kubeadm_init_cmd_extra_opts is defined %}
+  {{ kubeadm_init_cmd_extra_opts }} \
+  {% endif %}
+  --config {{ kubeadm_init_conf_file_path }}

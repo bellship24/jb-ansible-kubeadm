@@ -1,0 +1,40 @@
+--- # {{ ansible_managed }}
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+{{ kubeadm_init_configuration | to_nice_yaml }}
+{%-  if kubeadm_init_configuration.nodeRegistration is not defined %}
+{%-    if ignore_errors_preflights %}
+nodeRegistration:
+  ignorePreflightErrors:
+    - Swap
+    - SystemVerification
+{%       if (ansible_hostname|string in groups['k8s-master']) and (ansible_hostname|string in groups['k8s-node']) %}
+  taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+{%       endif %}
+{%     else %}
+{%       if (ansible_hostname|string in groups['k8s-master']) and (ansible_hostname|string in groups['k8s-node']) %}
+nodeRegistration:
+  taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+{%       endif %}
+{%     endif %}
+{%   endif %}
+
+---
+
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
+{{ kubeadm_cluster_configuration | to_nice_yaml }}
+{% if kubeadm_kubelet_configuration | length > 0 %}
+---
+
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+{{ kubeadm_kubelet_configuration | to_nice_yaml }}
+{% endif %}
+{% if kubeadm_kubeproxy_configuration | length > 0 %}
+---
+
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+{{ kubeadm_kubeproxy_configuration | to_nice_yaml }}
+{% endif %}

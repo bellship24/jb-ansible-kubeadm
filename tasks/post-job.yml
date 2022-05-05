@@ -1,0 +1,74 @@
+---
+- name: Restart not running pods in kube-system if exist
+  block:
+    - name: Check not running pods in kube-system if exist on first master node
+      shell: |
+        kubectl get po -n kube-system | awk '$3 != "Running" {print $1}' | tail -n +2
+      register: not_running_pod_names_cmd
+      when:
+        - ansible_hostname == groups['k8s-master'][0]
+      tags:
+        - test2
+
+    - name: Create variable not_running_pod_names
+      set_fact:
+        not_running_pod_names: "{{ not_running_pod_names_cmd.stdout }}"
+      when:
+        - ansible_hostname == groups['k8s-master'][0]
+        - not_running_pod_names_cmd.stdout | length > 0
+      tags:
+        - test2
+
+    - name: Print not running pod names if exist
+      debug:
+        var: not_running_pod_names
+      when:
+        - ansible_hostname == groups['k8s-master'][0]
+        - not_running_pod_names is defined
+        - not_running_pod_names | length > 0
+      tags:
+        - test2
+
+    - name: Restart not running pods in kube-system if exist
+      shell: |
+        kubectl delete po -n kube-system {{ not_running_pod_names }}
+      when:
+        - ansible_hostname == groups['k8s-master'][0]
+        - not_running_pod_names is defined
+        - not_running_pod_names | length > 0
+      tags:
+        - test2
+
+- name: Remove master taint if the node belongs to both k8s-master and k8s-node
+  block:
+    - name: Check if master taint exists for nodes belonging to both k8s-master and k8s-node group
+      shell: |
+        kubectl get nodes {{ ansible_hostname }} -o jsonpath='{.spec.taints[?(@.key=="node-role.kubernetes.io/master")]}' | grep -s NoSchedule
+      register: check_master_taint_cmd
+      when:
+        - ansible_hostname in groups['k8s-master']
+        - ansible_hostname in groups['k8s-node']
+      ignore_errors: true
+      tags:
+        - test2
+
+    - name: Print check_master_taint_cmd.stdout
+      debug:
+        msg: "{{ check_master_taint_cmd.stdout }}"
+      when:
+        - check_master_taint_cmd is defined
+        - check_master_taint_cmd.stdout | length > 0
+        # "master" in check_master_taint_cmd_stdout
+      tags:
+        - test2
+
+    - name: Remove master taint if the node has it
+      shell: |
+        kubectl taint node {{ ansible_hostname }} node-role.kubernetes.io/master-
+      register: remove_master_taint_cmd
+      when:
+        - check_master_taint_cmd.stdout | length > 0
+        - ansible_hostname in groups['k8s-master']
+        - ansible_hostname in groups['k8s-node']
+      tags:
+        - test2

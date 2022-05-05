@@ -1,0 +1,22 @@
+---
+- name: Converge
+  hosts: all
+  # order: sorted
+  vars:
+  pre_tasks:
+    - name: Include keepalived_molecule_pretask.yml
+      include_tasks: keepalived_molecule_pretask.yml
+
+    - name: Include haproxy_molecule_pretask.yml
+      include_tasks: haproxy_molecule_pretask.yml
+
+    - name: Include kubeadm_molecule_pretask.yml
+      include_tasks: kubeadm_molecule_pretask.yml
+      tags:
+        - test
+        - test3
+  roles:
+    - role: jb.ansible_docker #geerlingguy.docker
+    - role: jb.ansible_keepalived
+    - role: jb.ansible_haproxy
+    - role: jb.ansible_kubeadm

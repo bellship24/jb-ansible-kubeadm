@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: JoinConfiguration
+{{ kubeadm_join_configuration | to_nice_yaml }}
+{%-  if kubeadm_join_configuration.nodeRegistration is not defined %}
+{%-    if ignore_errors_preflights %}
+nodeRegistration:
+  ignorePreflightErrors:
+    - Swap
+    - SystemVerification
+{%       if (ansible_hostname|string in groups['k8s-master']) and (ansible_hostname|string in groups['k8s-node']) %}
+  taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+{%       endif %}
+{%     else %}
+{%       if (ansible_hostname|string in groups['k8s-master']) and (ansible_hostname|string in groups['k8s-node']) %}
+nodeRegistration:
+  taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+{%       endif %}
+{%     endif %}
+{%   endif %}
+{% if ansible_hostname|string in groups['k8s-master'] %}
+{{ kubeadm_join_configuration_controlplane | to_nice_yaml }}
+{% endif %}

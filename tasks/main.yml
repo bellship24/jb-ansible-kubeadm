@@ -1,0 +1,153 @@
+---
+# tasks file for ansible_kubeadm
+
+- name: Include OS-specific variable
+  include_vars: "{{ ansible_os_family }}.yml"
+
+- name: Include setup-prerequisite.yml
+  include_tasks: setup-prerequisite.yml
+  tags:
+    - test
+
+- name: Include setup-RedHat.yml
+  include_tasks: setup-RedHat.yml
+  when: ansible_os_family == 'RedHat'
+
+- name: Include setup-Debian.yml
+  include_tasks: setup-Debian.yml
+  when: ansible_os_family == 'Debian'
+
+- name: Include setup-kubelet.yml
+  include_tasks: setup-kubelet.yml
+  when: kubelet_extra_args|length > 0
+
+- name: Ensure kubelet is started and enabled at boot.
+  service:
+    name: kubelet
+    state: started
+    enabled: true
+
+- name: Check if node has already been initialized or joined
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: in_cluster_check
+  tags:
+    - test
+
+- name: Include setup-kubevip.yml
+  include_tasks: setup-kubevip.yml
+  when: 
+    (kubernetes_kubevip_enabled)
+    and (ansible_hostname == groups['k8s-master'][0])
+    # and (not in_cluster_check.stat.exists)
+  tags:
+    - test
+    - kube-vip
+
+- name: Include init-master.yml
+  include_tasks: init-master.yml
+  when:
+    - ansible_hostname == groups['k8s-master'][0]
+    # - not in_cluster_check.stat.exists
+  tags:
+    - test3
+
+# - name: Check master taint if the node belongs to both k8s-master and k8s-node
+#   lineinfile:
+#     path: /etc/kubernetes/kubeadm-init-conf.yaml
+#     line: "    taints: []"
+#     state: present
+#   check_mode: true
+#   register: check_master_taint
+#   when: ansible_hostname == groups['k8s-master'][0]
+#   tags:
+#     - test3
+
+# ### changed 가 true 일 때, 해당 내용이 없는 것.
+# - name: Print check_master_taint
+#   debug:
+#     var: check_master_taint
+#   when: ansible_hostname == groups['k8s-master'][0]
+#   tags:
+#     - test3
+
+# - name: Remove master_taint if the node belongs to both k8s-master and k8s-node
+#   yedit:
+#     src: /etc/kubernetes/kubeadm-init-conf.yaml
+#     key: nodeRegistration
+#     value:
+#       taints: []
+#   when: ansible_hostname == groups['k8s-master'][0]
+#   tags:
+#     - test3
+
+- name: Check if node has already been initialized or joined
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: in_cluster_check
+
+- name: Include init-post.yml
+  include_tasks: init-post.yml
+  when:
+    (ansible_hostname == groups['k8s-master'][0])
+    and (in_cluster_check.stat.exists)
+
+# - name: Check if node has already been initialized or joined
+#   stat:
+#     path: /etc/kubernetes/admin.conf
+#   register: in_cluster_check
+
+- name: Include setup-cni.yml
+  include_tasks: setup-cni.yml
+  when: 
+    (ansible_hostname == groups['k8s-master'][0])
+    and (in_cluster_check.stat.exists)
+
+- name: Include setup-join.yml
+  include_tasks: setup-join.yml
+  when:
+    (ansible_hostname == groups['k8s-master'][0])
+    and (groups['all'] | length > 1)
+
+- name: Check if node has already been initialized or joined (including worker nodes)
+  stat:
+    path: /etc/kubernetes/pki/ca.crt
+  register: in_cluster_check
+
+- name: Include join-nodes.yml
+  include_tasks: join-nodes.yml
+  when:
+    - groups['all'] | length > 1
+    - ansible_hostname != groups['k8s-master'][0]
+    # - not in_cluster_check.stat.exists
+  tags:
+    - test3
+    - test4
+
+- name: Check if node has already been initialized or joined (including worker nodes)
+  stat:
+    path: /etc/kubernetes/pki/ca.crt
+  register: in_cluster_check
+
+- name: Include join-post.yml
+  include_tasks: join-post.yml
+  when:
+    (groups['all'] | length > 1)
+    and (in_cluster_check.stat.exists)
+    and (ansible_hostname != groups['k8s-master'][0])
+  tags:
+    - test
+
+- name: Include post-job.yml
+  include_tasks: post-job.yml
+  tags:
+    - test2
+
+# - name: Check if Kubernetes has already been initialized
+#   stat:
+#     path: /etc/kubernetes/manifests
+#   register: in_cluster_check
+
+# - name: Include init-post.yml
+#   include_tasks: init-post.yml
+#   when: in_cluster_check.stat.exists

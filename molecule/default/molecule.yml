@@ -1,0 +1,84 @@
+---
+dependency:
+  name: galaxy
+driver:
+  name: docker
+platforms:
+  - name: k8s-ubuntu18-m3
+    image: bellship24/jb-ansible-molecule-ubuntu1804:v0.1  #geerlingguy/docker-centos7-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /sbin/init
+    # override_command: false
+    capabilities:
+      - SYS_ADMIN
+      - NET_RAW
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro  # for systemctl
+      - /var/lib/docker
+    groups:
+      - k8s-master
+      - k8s-node
+      - keepalived-backup
+      - haproxy
+    # networks:
+    #   - name:  k8s
+    #cpus: 1
+    #memory: 256MB
+  - name: k8s-ubuntu20-m2
+    image: bellship24/jb-ansible-molecule-ubuntu2004:v0.1  #geerlingguy/docker-centos7-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /sbin/init
+    # override_command: false
+    capabilities:
+      - SYS_ADMIN
+      - NET_RAW
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro  # for systemctl
+      - /var/lib/docker
+    groups:
+      - k8s-master
+      - k8s-node    
+      - keepalived-backup
+      - haproxy
+    # networks:
+    #   - name:  k8s
+    #cpus: 1
+    #memory: 256MB
+  - name: k8s-centos7-m1
+    image: bellship24/jb-ansible-molecule-centos7:v0.1  #geerlingguy/docker-centos7-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /sbin/init
+    # override_command: false
+    capabilities:
+      - SYS_ADMIN
+      - NET_RAW
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro  # for systemctl
+      - /var/lib/docker
+    groups:
+      - k8s-master
+      - k8s-node
+      - keepalived-master
+      - haproxy
+    # networks:
+    #   - name:  k8s
+    #cpus: 1
+    #memory: 256MB
+provisioner:
+  name: ansible
+  # config_options:
+  #   defaults:
+  #     remote_user: ansible
+  # inventory:
+  #   group_vars:
+  #     [group_name]:
+  #       [var name]: [value]
+  #   host_vars:
+  #     [host_name]:
+  #       [var name]: [value]
+      
+verifier:
+  name: ansible

@@ -1,0 +1,25 @@
+---
+- name: Ensure dependencies are installed
+  apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+    state: present
+  
+- name: Add Kubernetes APT GPG key.
+  apt_key:
+    url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+    state: present
+
+- name: Add Kubernetes APT repository.
+  apt_repository:
+    repo: "{{ kubernetes_apt_repository }}"
+    state: present
+    update_cache: true
+
+- name: Install Kubernetes packages (APT)
+  apt:
+    name: "{{ item.name }}"
+    state: "{{ item.state }}"
+  notify: restart kubelet
+  with_items: "{{ debian_kubernetes_packages }}"
