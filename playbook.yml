@@ -2,9 +2,163 @@
 - name: Provisioning HA k8s cluster
   hosts: all
   vars:
+    ### molecule prerequesite
+    ignore_errors_swap: false  # set 'true' when using molecule docker driver because in docker container configuraring swap off is complicate
+    ignore_preflight_errors: false # set 'true' when using molecule
+
+    ### kubernetes setting
+    # kubernetes_version: '1.21'  # for a kubeadm kubeadm_cluster_configuration
+    kubernetes_version: '1.21.3'  # for a package install
+    # kubernetes_controlplane_endpoint: 0.0.0.0:6443  # {{ default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}
+
+    debian_kubernetes_packages:
+      - name: kubelet={{ kubernetes_version }}-00
+        state: present
+      - name: kubectl={{ kubernetes_version }}-00
+        state: present
+      - name: kubeadm={{ kubernetes_version }}-00
+        state: present
+      - name: kubernetes-cni
+        state: present
+
+    rhel_kubernetes_packages:
+      - name: kubelet-{{ kubernetes_version }}-0
+        state: present
+      - name: kubectl-{{ kubernetes_version }}-0
+        state: present
+      - name: kubeadm-{{ kubernetes_version }}-0
+        state: present
+      - name: kubernetes-cni
+        state: present
+
+    ### HA controlplane setting
+    kubernetes_kubevip_enabled: false #true
+    kubernetes_kubevip_vip: "10.231.238.77" #"172.17.0.231"
+    kubernetes_kubevip_interface: "ens3" #"eth0"
+    kubernetes_kubevip_version: v0.4.3
+
+
+    ### yum
+    kubernetes_yum_basearch: '$basearch'
+    kubernetes_yum_base_url: "https://packages.cloud.google.com/yum/repos/kubernetes-el7-{{ kubernetes_yum_basearch }}"
+    kubernetes_yum_gpg_key:
+      - https://packages.cloud.google.com/yum/doc/yum-key.gpg
+      - https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+    kubernetes_yum_gpg_check: true
+    kubernetes_yum_repo_gpg_check: false #true
+
+
+    ### apt
+    kubernetes_apt_release_channel: main
+    kubernetes_apt_repository: "deb http://apt.kubernetes.io/ kubernetes-xenial {{ kubernetes_apt_release_channel }}"
+
+
+    ### extra args
+    kubelet_extra_args: ""  # set "--fail-swap-on=false --cgroup-driver=cgroupfs" when using molecule docker driver because in docker container configuraring sawp and crgroup-driver is complicate
+    kubeadm_init_cmd_extra_opts: "" # "--upload-certs"
+    kubeadm_join_cmd_extra_opts: ""
+
+
+    ### kubeadm configuration yaml
+    kubeadm_kubernetes_version: 'stable-{{ kubernetes_version.split(".")[:2] | join(".") }}'
+    kubeadm_conf_path: '/etc/kubernetes'
+    kubeadm_init_conf_file_path: "{{ kubeadm_conf_path + '/kubeadm-init-conf.yaml' }}"
+    kubeadm_init_cmd_file_path: "{{ kubeadm_conf_path + '/kubeadm-init-cmd.sh' }}"
+    kubeadm_join_conf_file_path: "{{ kubeadm_conf_path + '/kubeadm-join-conf.yaml' }}"
+    kubeadm_join_cmd_file_path: "{{ kubeadm_conf_path + '/kubeadm-join-cmd.sh' }}"
+
+    kubeadm_init_configuration:
+      localAPIEndpoint:
+        advertiseAddress: "{{ ansible_default_ipv4.address }}"
+        bindPort: 6443 #"{{ kubernetes_apiserver_adcertise_bindport | default(6443) | int }}"    # this jinja delimiter has problem about parsing string not int
+      ### use when it comes to a molecule docker driver
+      # nodeRegistration:
+      #   ignorePreflightErrors:
+      #     - Swap
+      #     - SystemVerification
+      ##### this key is set by jinja when ansible_hostname's in k8s-master and k8s-node
+      #   taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+      #####
+
+    kubeadm_cluster_configuration:
+      networking:
+        podSubnet: "{{ kubernetes_pod_network.cidr }}"
+      kubernetesVersion: "{{ kubeadm_kubernetes_version }}"
+      controlPlaneEndpoint: "{{ kubernetes_controlplane_endpoint | default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}"
+
+    kubeadm_kubelet_configuration: {}
+      ### use when it comes to molecule docker driver because configuraring cgroup-driver is complicate in docker container
+      # cgroupDriver: "cgroupfs" 
+
+    kubeadm_kubeproxy_configuration: {}
+      ### use when it comes to molecule docker driver because configuraring /lib/modules is complicate in docker container
+      # conntrack:
+      #   maxPerCore: 0
+
+    kubeadm_join_configuration:
+      # caCertPath: "default(/etc/kubernetes/pki/ca.crt"
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: "{{ hostvars[groups['k8s-master'][0]]['ansible_default_ipv4']['address'] }}:6443"
+          token: "{{ kubeadm_token | default('') }}"
+          caCertHashes:
+            - "{{ kubeadm_hash | default('') }}"
+          # unsafeSkipCAVerification: true
+        tlsBootstrapToken: "{{ kubeadm_token | default('') }}"
+      # nodeRegistration:
+        # name: # default is hostname
+        # criSocket: /var/run/dockershim.sock
+        
+        ### use when it comes to a molecule docker driver
+        # ignorePreflightErrors:
+        #   - Swap
+        #   - SystemVerification
+        ##### this key is set by jinja when ansible_hostname's in k8s-master and k8s-node
+        # taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+        #####
+
+    kubeadm_join_configuration_controlplane:
+      controlPlane:
+        localAPIEndpoint:
+          advertiseAddress: "{{ ansible_default_ipv4.address }}"
+          bindPort: 6443
+        certificateKey: "{{ kubeadm_cert_key | default('') }}"
+
+
+    ### cni setting
+    kubernetes_pod_network:
+      # WeaveNet CNI
+      cni: 'weave'
+      cidr: '192.168.0.0/16'
+
+      # Flannel CNI
+      # cni: 'flannel'
+      # cidr: '10.244.0.0/16'
+      
+      # Calico CNI
+      # cni: 'calico'
+      # cidr: '192.168.0.0/16'
+
+
+    ### WeaveNet config files
+    kubernetes_weave_manifest_file: https://cloud.weave.works/k8s/net?k8s-version={{ kubectl_version.stdout_lines[0] }}
+
+
+    ### Flannel config files
+    kubernetes_flannel_manifest_file_rbac: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-rbac.yml
+    kubernetes_flannel_manifest_file: https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+
+
+    ### Calico config files
+    kubernetes_calico_manifest_file: https://docs.projectcalico.org/v3.10/manifests/calico.yaml
+
+
+
+
+
     keepalived_interface: ens3
-    keepalived_virtual_router_id: 177
-    keepalived_virtual_ipaddress: 10.231.238.221/24  ## 172.17.0.55/24
+    keepalived_virtual_router_id: 173
+    keepalived_virtual_ipaddress: 10.231.238.77/24  ## 172.17.0.55/24
     # keepalived_conf: |
     #   global_defs {
     #       router_id LVS_DEVEL
@@ -35,9 +189,9 @@
     #   }
 
     haproxy_backend_server_endpoint_list:
-      - {"hostname": "pjb-dev-k8s-m1", "ip": 10.231.238.242, "port": 6443}
-      - {"hostname": "pjb-dev-k8s-m2", "ip": 10.231.238.243, "port": 6443}
-      - {"hostname": "pjb-dev-k8s-m3", "ip": 10.231.238.244, "port": 6443}
+      - {"hostname": "pjb-dev-k8s-ans-1", "ip": 10.231.238.178, "port": 6443}
+    #   - {"hostname": "pjb-dev-k8s-m2", "ip": 10.231.238.243, "port": 6443}
+    #   - {"hostname": "pjb-dev-k8s-m3", "ip": 10.231.238.244, "port": 6443}
 
     # haproxy_conf: |
     #   #---------------------------------------------------------------------
@@ -62,8 +216,8 @@
     #           server {{ node.hostname }} {{ node.ip }}:{{ node.port }} check
     #           {% endfor %}
 
-    kubernetes_controlplane_endpoint: 10.231.238.221:8443 
-    kubelet_extra_args: "--fail-swap-on=false --cgroup-driver=cgroupfs"
+    kubernetes_controlplane_endpoint: 10.231.238.77:8443
+    # kubelet_extra_args: "--fail-swap-on=false --cgroup-driver=cgroupfs"
     kubeadm_init_configuration:
       localAPIEndpoint:
         advertiseAddress: "{{ ansible_default_ipv4.address }}"
@@ -82,14 +236,14 @@
       controlPlaneEndpoint: "{{ kubernetes_controlplane_endpoint | default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}"
 
 
-    kubeadm_kubelet_configuration: # {}
+    kubeadm_kubelet_configuration: {}
       ### use when it comes to molecule docker driver because configuraring cgroup-driver is complicate in docker container
-      cgroupDriver: "cgroupfs" 
+      # cgroupDriver: "cgroupfs" 
 
-    kubeadm_kubeproxy_configuration: # {}
+    kubeadm_kubeproxy_configuration: {}
       ### use when it comes to molecule docker driver because configuraring /lib/modules is complicate in docker container
-      conntrack:
-        maxPerCore: 0
+      # conntrack:
+      #   maxPerCore: 0
 
     kubeadm_join_configuration:
       # caCertPath: "default(/etc/kubernetes/pki/ca.crt"
@@ -101,16 +255,16 @@
             - "{{ kubeadm_hash | default('') }}"
           # unsafeSkipCAVerification: true
         tlsBootstrapToken: "{{ kubeadm_token | default('') }}"
-      nodeRegistration:
-        # name: # default is hostname
-        # criSocket: /var/run/dockershim.sock
+      # nodeRegistration:
+      #   # name: # default is hostname
+      #   # criSocket: /var/run/dockershim.sock
         
-        ## use when it comes to a molecule docker driver
-        ignorePreflightErrors:
-          - Swap
-          - SystemVerification
-          - IsDockerSystemdCheck
-        taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+      #   ## use when it comes to a molecule docker driver
+      #   ignorePreflightErrors:
+      #     - Swap
+      #     - SystemVerification
+      #     - IsDockerSystemdCheck
+      #   taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
 
     kubeadm_join_configuration_controlplane:
       controlPlane:
@@ -120,7 +274,7 @@
         certificateKey: "{{ kubeadm_cert_key | default('') }}"
   become: true
   roles:
-    # - role: jb.ansible_docker
-    - role: jb.ansible_keepalived
-    - role: jb.ansible_haproxy
-    - role: jb.ansible_kubeadm
+    # - role: jb.jb_ansible_docker
+    - role: jb.jb_ansible_keepalived
+    - role: jb.jb_ansible_haproxy
+    - role: jb.jb_ansible_kubeadm

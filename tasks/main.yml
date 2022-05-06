@@ -37,9 +37,9 @@
 - name: Include setup-kubevip.yml
   include_tasks: setup-kubevip.yml
   when: 
-    (kubernetes_kubevip_enabled)
-    and (ansible_hostname == groups['k8s-master'][0])
-    # and (not in_cluster_check.stat.exists)
+    - kubernetes_kubevip_enabled
+    - ansible_hostname == groups['k8s-master'][0]
+    - not in_cluster_check.stat.exists
   tags:
     - test
     - kube-vip
@@ -48,7 +48,7 @@
   include_tasks: init-master.yml
   when:
     - ansible_hostname == groups['k8s-master'][0]
-    # - not in_cluster_check.stat.exists
+    - not in_cluster_check.stat.exists
   tags:
     - test3
 
@@ -89,25 +89,25 @@
 - name: Include init-post.yml
   include_tasks: init-post.yml
   when:
-    (ansible_hostname == groups['k8s-master'][0])
-    and (in_cluster_check.stat.exists)
+    - ansible_hostname == groups['k8s-master'][0]
+    - in_cluster_check.stat.exists
 
-# - name: Check if node has already been initialized or joined
-#   stat:
-#     path: /etc/kubernetes/admin.conf
-#   register: in_cluster_check
+- name: Check if node has already been initialized or joined
+  stat:
+    path: /etc/kubernetes/admin.conf
+  register: in_cluster_check
 
 - name: Include setup-cni.yml
   include_tasks: setup-cni.yml
   when: 
-    (ansible_hostname == groups['k8s-master'][0])
-    and (in_cluster_check.stat.exists)
+    - ansible_hostname == groups['k8s-master'][0]
+    - in_cluster_check.stat.exists
 
 - name: Include setup-join.yml
   include_tasks: setup-join.yml
   when:
-    (ansible_hostname == groups['k8s-master'][0])
-    and (groups['all'] | length > 1)
+    - ansible_hostname == groups['k8s-master'][0]
+    - groups['all'] | length > 1
 
 - name: Check if node has already been initialized or joined (including worker nodes)
   stat:
@@ -119,7 +119,7 @@
   when:
     - groups['all'] | length > 1
     - ansible_hostname != groups['k8s-master'][0]
-    # - not in_cluster_check.stat.exists
+    - not in_cluster_check.stat.exists
   tags:
     - test3
     - test4
@@ -142,12 +142,3 @@
   include_tasks: post-job.yml
   tags:
     - test2
-
-# - name: Check if Kubernetes has already been initialized
-#   stat:
-#     path: /etc/kubernetes/manifests
-#   register: in_cluster_check
-
-# - name: Include init-post.yml
-#   include_tasks: init-post.yml
-#   when: in_cluster_check.stat.exists

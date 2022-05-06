@@ -1,6 +1,10 @@
 ---
 - name: Restart not running pods in kube-system if exist
   block:
+    - name: Pause for 1 minute to check running pods
+      pause:
+        minutes: 1
+
     - name: Check not running pods in kube-system if exist on first master node
       shell: |
         kubectl get po -n kube-system | awk '$3 != "Running" {print $1}' | tail -n +2

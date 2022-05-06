@@ -16,7 +16,7 @@
         - test
         - test3
   roles:
-    - role: jb.ansible_docker #geerlingguy.docker
-    - role: jb.ansible_keepalived
-    - role: jb.ansible_haproxy
-    - role: jb.ansible_kubeadm
+    - role: jb.jb_ansible_docker #geerlingguy.docker
+    - role: jb.jb_ansible_keepalived
+    - role: jb.jb_ansible_haproxy
+    - role: jb.jb_ansible_kubeadm
