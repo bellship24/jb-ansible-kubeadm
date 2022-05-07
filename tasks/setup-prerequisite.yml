@@ -45,6 +45,21 @@
     ansible_distribution != 'Debian'
     or ansible_distribution_major_version | int < 10
 
+- name: Check if a path /proc/sys/net/bridge exists
+  stat:
+    path: /proc/sys/net/bridge
+  register: check_bridge_path_exist
+
+- name: Print check_bridge_path_exist
+  debug:
+    var: check_bridge_path_exist.stat.exists
+
+- name: Ensure netfilter when check_bridge_path_exist is false
+  shell: |
+    modprobe br_netfilter
+  when:
+    - check_bridge_path_exist.stat.exists is false
+
 - name: Let iptables see bridged traffic
   sysctl:
     name: "{{ item }}"
