@@ -4,12 +4,12 @@
   vars:
     ### molecule prerequesite
     ignore_errors_swap: false  # set 'true' when using molecule docker driver because in docker container configuraring swap off is complicate
-    ignore_preflight_errors: false # set 'true' when using molecule
+    ignore_errors_preflights: false # set 'true' when using molecule
 
     ### kubernetes setting
     # kubernetes_version: '1.21'  # for a kubeadm kubeadm_cluster_configuration
     kubernetes_version: '1.21.3'  # for a package install
-    # kubernetes_controlplane_endpoint: 0.0.0.0:6443  # {{ default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}
+    kubernetes_controlplane_endpoint: 10.231.238.78:8443 #0.0.0.0:6443  # {{ default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}
 
     debian_kubernetes_packages:
       - name: kubelet={{ kubernetes_version }}-00
@@ -33,7 +33,7 @@
 
     ### HA controlplane setting
     kubernetes_kubevip_enabled: false #true
-    kubernetes_kubevip_vip: "10.231.238.77" #"172.17.0.231"
+    kubernetes_kubevip_vip: "10.231.238.78" #"172.17.0.231"
     kubernetes_kubevip_interface: "ens3" #"eth0"
     kubernetes_kubevip_version: v0.4.3
 
@@ -157,8 +157,8 @@
 
 
     keepalived_interface: ens3
-    keepalived_virtual_router_id: 173
-    keepalived_virtual_ipaddress: 10.231.238.77/24  ## 172.17.0.55/24
+    keepalived_virtual_router_id: 174
+    keepalived_virtual_ipaddress: 10.231.238.78/24  ## 172.17.0.55/24
     # keepalived_conf: |
     #   global_defs {
     #       router_id LVS_DEVEL
@@ -189,9 +189,9 @@
     #   }
 
     haproxy_backend_server_endpoint_list:
-      - {"hostname": "pjb-dev-k8s-ans-1", "ip": 10.231.238.178, "port": 6443}
-    #   - {"hostname": "pjb-dev-k8s-m2", "ip": 10.231.238.243, "port": 6443}
-    #   - {"hostname": "pjb-dev-k8s-m3", "ip": 10.231.238.244, "port": 6443}
+      - {"hostname": "pjb-dev-k8s-ans-1", "ip": 10.231.238.242, "port": 6443}
+      - {"hostname": "pjb-dev-k8s-m2", "ip": 10.231.238.243, "port": 6443}
+      - {"hostname": "pjb-dev-k8s-m3", "ip": 10.231.238.244, "port": 6443}
 
     # haproxy_conf: |
     #   #---------------------------------------------------------------------
@@ -216,65 +216,65 @@
     #           server {{ node.hostname }} {{ node.ip }}:{{ node.port }} check
     #           {% endfor %}
 
-    kubernetes_controlplane_endpoint: 10.231.238.77:8443
-    # kubelet_extra_args: "--fail-swap-on=false --cgroup-driver=cgroupfs"
-    kubeadm_init_configuration:
-      localAPIEndpoint:
-        advertiseAddress: "{{ ansible_default_ipv4.address }}"
-        bindPort: 6443 # "{{ kubernetes_apiserver_adcertise_bindport | default(6443) | int }}"  # this jinja delimiter has problem about parsing string not int
-      ### use when it comes to a molecule docker driver
-      nodeRegistration:
-        ignorePreflightErrors:
-          - Swap
-          - SystemVerification
-        taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+    # kubernetes_controlplane_endpoint: 10.231.238.77:8443
+    # # kubelet_extra_args: "--fail-swap-on=false --cgroup-driver=cgroupfs"
+    # kubeadm_init_configuration:
+    #   localAPIEndpoint:
+    #     advertiseAddress: "{{ ansible_default_ipv4.address }}"
+    #     bindPort: 6443 # "{{ kubernetes_apiserver_adcertise_bindport | default(6443) | int }}"  # this jinja delimiter has problem about parsing string not int
+    #   ### use when it comes to a molecule docker driver
+    #   nodeRegistration:
+    #     ignorePreflightErrors:
+    #       - Swap
+    #       - SystemVerification
+    #     taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
 
-    kubeadm_cluster_configuration:
-      networking:
-        podSubnet: "{{ kubernetes_pod_network.cidr }}"
-      kubernetesVersion: "{{ kubeadm_kubernetes_version }}"
-      controlPlaneEndpoint: "{{ kubernetes_controlplane_endpoint | default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}"
+    # kubeadm_cluster_configuration:
+    #   networking:
+    #     podSubnet: "{{ kubernetes_pod_network.cidr }}"
+    #   kubernetesVersion: "{{ kubeadm_kubernetes_version }}"
+    #   controlPlaneEndpoint: "{{ kubernetes_controlplane_endpoint | default(kubeadm_init_configuration.localAPIEndpoint.advertiseAddress + ':' + kubeadm_init_configuration.localAPIEndpoint.bindPort|string) }}"
 
 
-    kubeadm_kubelet_configuration: {}
-      ### use when it comes to molecule docker driver because configuraring cgroup-driver is complicate in docker container
-      # cgroupDriver: "cgroupfs" 
+    # kubeadm_kubelet_configuration: {}
+    #   ### use when it comes to molecule docker driver because configuraring cgroup-driver is complicate in docker container
+    #   # cgroupDriver: "cgroupfs" 
 
-    kubeadm_kubeproxy_configuration: {}
-      ### use when it comes to molecule docker driver because configuraring /lib/modules is complicate in docker container
-      # conntrack:
-      #   maxPerCore: 0
+    # kubeadm_kubeproxy_configuration: {}
+    #   ### use when it comes to molecule docker driver because configuraring /lib/modules is complicate in docker container
+    #   # conntrack:
+    #   #   maxPerCore: 0
 
-    kubeadm_join_configuration:
-      # caCertPath: "default(/etc/kubernetes/pki/ca.crt"
-      discovery:
-        bootstrapToken:
-          apiServerEndpoint: "{{ hostvars[groups['k8s-master'][0]]['ansible_default_ipv4']['address'] }}:6443"
-          token: "{{ kubeadm_token | default('') }}"
-          caCertHashes:
-            - "{{ kubeadm_hash | default('') }}"
-          # unsafeSkipCAVerification: true
-        tlsBootstrapToken: "{{ kubeadm_token | default('') }}"
-      # nodeRegistration:
-      #   # name: # default is hostname
-      #   # criSocket: /var/run/dockershim.sock
+    # kubeadm_join_configuration:
+    #   # caCertPath: "default(/etc/kubernetes/pki/ca.crt"
+    #   discovery:
+    #     bootstrapToken:
+    #       apiServerEndpoint: "{{ hostvars[groups['k8s-master'][0]]['ansible_default_ipv4']['address'] }}:6443"
+    #       token: "{{ kubeadm_token | default('') }}"
+    #       caCertHashes:
+    #         - "{{ kubeadm_hash | default('') }}"
+    #       # unsafeSkipCAVerification: true
+    #     tlsBootstrapToken: "{{ kubeadm_token | default('') }}"
+    #   # nodeRegistration:
+    #   #   # name: # default is hostname
+    #   #   # criSocket: /var/run/dockershim.sock
         
-      #   ## use when it comes to a molecule docker driver
-      #   ignorePreflightErrors:
-      #     - Swap
-      #     - SystemVerification
-      #     - IsDockerSystemdCheck
-      #   taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
+    #   #   ## use when it comes to a molecule docker driver
+    #   #   ignorePreflightErrors:
+    #   #     - Swap
+    #   #     - SystemVerification
+    #   #     - IsDockerSystemdCheck
+    #   #   taints: [] # null is 'node-role.kubernetes.io/master=""' and [] is not to taint your control-plane node
 
-    kubeadm_join_configuration_controlplane:
-      controlPlane:
-        localAPIEndpoint:
-          advertiseAddress: "{{ ansible_default_ipv4.address }}"
-          bindPort: 6443
-        certificateKey: "{{ kubeadm_cert_key | default('') }}"
+    # kubeadm_join_configuration_controlplane:
+    #   controlPlane:
+    #     localAPIEndpoint:
+    #       advertiseAddress: "{{ ansible_default_ipv4.address }}"
+    #       bindPort: 6443
+    #     certificateKey: "{{ kubeadm_cert_key | default('') }}"
   become: true
   roles:
     # - role: jb.jb_ansible_docker
-    - role: jb.jb_ansible_keepalived
-    - role: jb.jb_ansible_haproxy
+    # - role: jb.jb_ansible_keepalived
+    # - role: jb.jb_ansible_haproxy
     - role: jb.jb_ansible_kubeadm

@@ -1,7 +1,7 @@
 ---
 ### molecule prerequesite
 ignore_errors_swap: false  # set 'true' when using molecule docker driver because in docker container configuraring swap off is complicate
-ignore_preflight_errors: false # set 'true' when using molecule
+ignore_errors_preflights: false # set 'true' when using molecule
 
 ### kubernetes setting
 # kubernetes_version: '1.21'  # for a kubeadm kubeadm_cluster_configuration
